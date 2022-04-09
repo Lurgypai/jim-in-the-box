@@ -1,5 +1,6 @@
 import "CoreLibs/graphics"
 import "CoreLibs/sprites"
+import "CoreLibs/animation"
 
 local gfx <const> = playdate.graphics
 local geom <const> = playdate.geometry
@@ -43,15 +44,21 @@ local r_hand_img = nil
 local char_img = nil
 local table_img = nil
 local l_hand_img = nil
+local l_hand_out_img = nil
 local box_img = nil
 local jim_img = nil
+local button_table = nil
 
 local r_hand_spr
 local l_hand_spr
+local l_hand_out_spr
 local char_spr
 local box_spr
 local table_spr
 local jim_spr
+local button_spr
+
+local button_loop
 
 local crank_radius = 25
 local arm_seg_length = 90
@@ -66,20 +73,26 @@ function startup()
     charge = 0 
     r_hand_img = gfx.image.new("images/arm")
     l_hand_img = gfx.image.new("images/l_hand")
+    l_hand_out_img = gfx.image.new("images/l_hand_out")
     char_img = gfx.image.new("images/char")
     box_img = gfx.image.new("images/box")
     table_img = gfx.image.new("images/table")
     jim_img = gfx.image.new("images/jim")
+    button_table = gfx.imagetable.new("images/button_anim")
+    button_loop = gfx.animation.loop.new(800, button_table)
 
     r_hand_spr = gfx.sprite.new(r_hand_img)
     l_hand_spr = gfx.sprite.new(l_hand_img)
+    l_hand_out_spr = gfx.sprite.new(l_hand_out_img)
     char_spr = gfx.sprite.new(char_img)
     box_spr = gfx.sprite.new(box_img)
     table_spr = gfx.sprite.new(table_img)
     jim_spr = gfx.sprite.new(jim_img)
+    button_spr = gfx.sprite.new(button_loop:image())
 
     r_hand_spr:setCenter(0, 0)
     l_hand_spr:setCenter(0, 0)
+    l_hand_out_spr:setCenter(0, 0)
     char_spr:setCenter(0, 0)
     box_spr:setCenter(0, 0)
     table_spr:setCenter(0, 0)
@@ -87,10 +100,11 @@ function startup()
     table_spr:moveTo(0, 0)
     box_spr:moveTo(crank_center_x + box_offset_x, crank_center_y + box_offset_y)
     
-
     -- hands in the front
     r_hand_spr:setZIndex(10)
     l_hand_spr:setZIndex(10)
+    l_hand_out_spr:setZIndex(-10)
+    button_spr:setZIndex(15)
 
     -- table in the middle
     table_spr:setZIndex(5)
@@ -103,12 +117,17 @@ function startup()
 
     r_hand_spr:add()
     l_hand_spr:add()
+    l_hand_out_spr:add()
     char_spr:add()
     box_spr:add()
     table_spr:add()
     jim_spr:add()
+    button_spr:add()
 
     jim_spr:setVisible(false)
+    l_hand_out_spr:setVisible(false)
+    button_spr:setVisible(false)
+    button_spr:moveTo(200, 200)
 end
 
 startup()
@@ -172,6 +191,8 @@ function update_body(crank_change)
     end
 end
 
+local l_hand_swapped = false
+
 function draw_all()
     -- draw pos for right hand image
     r_hand_x = crank_center_x + math.sin(math.rad(playdate.getCrankPosition())) * 5
@@ -185,8 +206,39 @@ function draw_all()
     char_spr:moveTo(body_draw_x, body_draw_y)
 
 
-    -- draw left hand
-    l_hand_spr:moveTo(l_hand_x, l_hand_y)
+    if(not gameover) then
+        -- draw left hand
+        l_hand_spr:moveTo(l_hand_x, l_hand_y)
+    else
+        if(not l_hand_swapped) then
+            l_hand_spr:setVisible(false)
+            l_hand_out_spr:setVisible(true)
+            l_hand_out_spr:moveTo(l_hand_x, l_hand_y + 100)
+            l_hand_swapped = true
+
+            button_spr:setVisible(true)
+        end
+
+        local target_pos = {
+            x = l_hand_x - 20,
+            y = l_hand_y - 150
+        }
+
+        local x_diff = target_pos.x - l_hand_out_spr.x
+        if(math.abs(x_diff) > 1) then
+            l_hand_out_spr:moveBy(x_diff / 10, 0)
+        else
+            l_hand_out_spr:moveTo(target_pos.x, l_hand_out_spr.y)
+        end
+        local y_diff = target_pos.y - l_hand_out_spr.y
+        if(math.abs(y_diff) > 1) then
+            l_hand_out_spr:moveBy(0, y_diff / 10)
+        else
+            l_hand_out_spr:moveTo(l_hand_out_spr.x, target_pos.y)
+        end
+
+        button_spr:setImage(button_loop:image())
+    end
     -- draw right hand
     r_hand_spr:moveTo(r_hand_x, r_hand_y)
 
@@ -207,9 +259,17 @@ gfx.sprite.setBackgroundDrawingCallback(
             local r_elbow_x = math.abs(r_joint_x - r_shoulder_x) / 3 + math.min(r_shoulder_x, r_joint_x)
             local r_elbow_y = math.abs(r_joint_y - r_shoulder_y) / 3 + math.max(r_shoulder_y, r_joint_y)
            
+            local l_joint_x
+            local l_joint_y
+
             -- end of left arm
-            local l_joint_x = l_hand_x + l_hand_offset_x
-            local l_joint_y = l_hand_y + l_hand_offset_y
+            if(not gameover) then
+                l_joint_x = l_hand_x + l_hand_offset_x
+                l_joint_y = l_hand_y + l_hand_offset_y
+            else
+                l_joint_x = l_hand_out_spr.x + 70
+                l_joint_y = l_hand_out_spr.y + 150
+            end
             -- start of left arm
             local l_shoulder_x = body_pos_x + l_shoulder_offset_x
             local l_shoulder_y = body_pos_y + l_shoulder_offset_y
@@ -253,13 +313,34 @@ function update_jim()
         end
 
         jim_spr:moveBy(0, jim_y_vel)
-        print(jim_y_vel..", "..jim_y_accel)
     end
 end
 
 local jim_spawned = false
 
 function playdate.update()
+    if(gameover and playdate.buttonIsPressed(playdate.kButtonA)) then
+        gameover = false
+
+        -- reset jim
+        jim_spawned = false
+        jim_spr:setVisible(false)
+        
+        -- reset body
+        scared_pos_x = 100
+        scared_pos_y = 100
+
+        -- reset hand
+        l_hand_spr:setVisible(true)
+        l_hand_out_spr:setVisible(false)
+        l_hand_swapped = false
+        
+        -- reset charge
+        charge = 0
+
+        button_spr:setVisible(false)
+    end
+
     local crank_change = update_charge()
     if(charge > 4000 + math.random(3000)) then
         gameover = true
