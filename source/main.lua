@@ -1,9 +1,12 @@
 import "CoreLibs/graphics"
 import "CoreLibs/sprites"
 import "CoreLibs/animation"
+import "CoreLibs/easing"
 
 local gfx <const> = playdate.graphics
 local geom <const> = playdate.geometry
+local snd <const> = playdate.sound
+
 local charge
 local debug_rect
 local crank_rect
@@ -27,10 +30,10 @@ local r_shoulder_offset_x <const> = 80
 local r_shoulder_offset_y <const> = 0
 local r_hand_offset_x <const> = 43
 local r_hand_offset_y <const> = 28
-local l_hand_x <const> = 30
+local l_hand_x <const> = 40
 local l_hand_y <const> = 165
-local r_hand_x
-local r_hand_y
+local r_hand_x = 0
+local r_hand_y = 0
 local l_hand_offset_x <const> = 13
 local l_hand_offset_y <const> = 10
 local crank_center_x <const> = 270
@@ -38,7 +41,7 @@ local crank_center_y <const> = 140
 local box_offset_x <const> = -122
 local box_offset_y <const> = -45
 local jim_target_x <const> = 210
-local jim_target_y <const> = 70
+local jim_target_y = 200 
 
 local r_hand_img = nil
 local char_img = nil
@@ -57,6 +60,7 @@ local box_spr
 local table_spr
 local jim_spr
 local button_spr
+local fnt
 
 local button_loop
 
@@ -78,8 +82,9 @@ function startup()
     box_img = gfx.image.new("images/box")
     table_img = gfx.image.new("images/table")
     jim_img = gfx.image.new("images/jim")
-    button_table = gfx.imagetable.new("images/button_anim")
+    button_table = gfx.imagetable.new("images/r_button")
     button_loop = gfx.animation.loop.new(800, button_table)
+    fnt = gfx.font.new("fnt/Roobert-9-Mono-Condensed")
 
     r_hand_spr = gfx.sprite.new(r_hand_img)
     l_hand_spr = gfx.sprite.new(l_hand_img)
@@ -104,7 +109,7 @@ function startup()
     r_hand_spr:setZIndex(10)
     l_hand_spr:setZIndex(10)
     l_hand_out_spr:setZIndex(-10)
-    button_spr:setZIndex(15)
+    button_spr:setZIndex(25)
 
     -- table in the middle
     table_spr:setZIndex(5)
@@ -124,13 +129,25 @@ function startup()
     jim_spr:add()
     button_spr:add()
 
-    jim_spr:setVisible(false)
     l_hand_out_spr:setVisible(false)
-    button_spr:setVisible(false)
-    button_spr:moveTo(200, 200)
+    button_spr:moveTo(370, 210)
+    jim_spr:moveTo(jim_target_x, jim_target_y)
 end
 
 startup()
+
+gfx.setFont(fnt)
+local tut_image = gfx.image.new(400, 240, gfx.kColorWhite)
+gfx.pushContext(tut_image)
+local tut_str =
+"Hello There!\n"..
+"Turn the handle a little bit and then hand it to a friend. Let them turn it and pass it on. Whoever Jim pops out on is out! The last person in wins!"
+gfx.drawTextInRect(tut_str, 10, 10, 380, 220, 0, "...", kTextAlignment.center)
+gfx.popContext()
+local tut_spr = gfx.sprite.new(tut_image)
+tut_spr:setCenter(0, 0)
+tut_spr:setZIndex(20)
+tut_spr:add()
 
 function get_circle_intersect(x1, y1, r1, x2, y2, r2)
     local d = math.sqrt((x2-x1)^2 + (y2-y1)^2)
@@ -146,9 +163,8 @@ function get_circle_intersect(x1, y1, r1, x2, y2, r2)
     return x4, y4, x5, y5
 end
 
-function update_charge()
+function update_charge(crank_change)
     if(not gameover) then
-        local crank_change = playdate.getCrankChange()
         if (crank_change > 0) then
             crank_change /= math.random(5)
             charge += crank_change
@@ -245,6 +261,7 @@ function draw_all()
     gfx.sprite.update()
 end
 
+local in_tut = true
 gfx.sprite.setBackgroundDrawingCallback(
         function (x, y, width, height)
             gfx.setClipRect(x, y, width, height )
@@ -313,47 +330,146 @@ function update_jim()
         end
 
         jim_spr:moveBy(0, jim_y_vel)
+        if(jim_spr.y > 200) then
+            jim_y_vel = 0
+        end
+        s, ms = playdate.getSecondsSinceEpoch()
+        local time = s * 1000 + ms
+        local offset = math.sin(time / 800) * 5
+        jim_spr:moveTo(jim_target_x + offset, jim_spr.y)
     end
 end
 
 local jim_spawned = false
 
+local song = {
+    "G4", "", "C5", "",
+    "", "", "C5", "",
+    "D5", "", "", "",
+    "D5", "", "E5", "",
+    "G5", "", "E5", "",
+    "C5", "", "", "",
+    "G4", "", "C5", "",
+    "", "", "C5", "",
+    "D5", "", "", "",
+    "F5", "", "E5", "",
+    "", "", "", "",
+    "C5", "", "", "",
+    "G4", "", "C5", "",
+    "", "", "C5", "",
+    "D5", "", "", "",
+    "D5", "", "E5", "",
+    "G5", "", "E5", "",
+    "C5", "", "", "",
+    "", "", "A5", "",
+    "", "", "", "",
+    "D5", "", "", "",
+    "F5", "", "E5", "",
+    "", "", "", "",
+    "C5", "", "", "",
+}
+local s = snd.synth.new(snd.kWaveSine)
+local p = snd.synth.new(snd.kWaveNoise)
+s:setADSR(0.0, 0.1, 0.2, 0.2)
+p:setADSR(0.0, 0.0, 0.3, 0.0001)
+local ins = snd.instrument.new(s)
+local pins = snd.instrument.new(p)
+local s2 = snd.synth.new(snd.kWaveSine)
+s2:setADSR(0.0, 0.1, 0.2, 0.2)
+local ins2 = snd.instrument.new(s2)
+local s3 = snd.synth.new(snd.kWaveSine)
+s3:setADSR(0.0, 0.1, 0.2, 0.2)
+local ins3 = snd.instrument.new(s3)
+local step_delay = 0
+local step = 1
+
+local tut_animator
+local tut_ending_a = false
+local tut_ending_b = false
+
+local slide_1 = snd.sampleplayer.new("sounds/slide_1")
+local slide_2 = snd.sampleplayer.new("sounds/slide_2")
+
 function playdate.update()
-    if(gameover and playdate.buttonIsPressed(playdate.kButtonA)) then
-        gameover = false
+    local scaled_crank_change = 0
+    if (not in_tut) then
+        if(gameover and playdate.buttonIsPressed(playdate.kButtonRight)) then
+            gameover = false
 
-        -- reset jim
-        jim_spawned = false
-        jim_spr:setVisible(false)
-        
-        -- reset body
-        scared_pos_x = 100
-        scared_pos_y = 100
+            -- reset jim
+            jim_spawned = false
+            jim_target_y = 200
+            
+            -- reset body
+            scared_pos_x = 100
+            scared_pos_y = 100
 
-        -- reset hand
-        l_hand_spr:setVisible(true)
-        l_hand_out_spr:setVisible(false)
-        l_hand_swapped = false
-        
-        -- reset charge
-        charge = 0
+            -- reset hand
+            l_hand_spr:setVisible(true)
+            l_hand_out_spr:setVisible(false)
+            l_hand_swapped = false
+            
+            -- reset charge
+            charge = 0
 
-        button_spr:setVisible(false)
-    end
+            button_spr:setVisible(false)
+        end
 
-    local crank_change = update_charge()
-    if(charge > 4000 + math.random(3000)) then
-        gameover = true
-        if(not jim_spawned) then
-            jim_spawned = true
+        local crank_change = playdate.getCrankChange()
+        if(not gameover) then
+            step_delay += crank_change
+            if(step_delay >= 90) then
+                step_delay -= 90
+                if song[step] ~= "" then
+                    ins:playNote(song[step], 1.0, 0.1)
+                    pins:playNote(song[step], 0.1, 0.001)
+                end
+                if (step == #song) then
+                    step = 0
+                end
+                step += 1
+            end
+        end
+        scaled_crank_change = update_charge(crank_change)
+        if(charge > 4000 + math.random(3000)) then
+            gameover = true
+            if(not jim_spawned) then
+                jim_spawned = true
 
-            jim_spr:setVisible(true)
-            jim_spr:moveTo(jim_target_x, 200)
+                ins:playNote("C4", 0.3, 0.3)
+                ins2:playNote("B3", 0.3, 0.3)
+                ins3:playNote("A3", 0.3, 0.3)
+
+                step = 1
+
+                jim_target_y = 70
+            end
+        end
+    else
+        button_spr:setImage(button_loop:image())
+        if(tut_ending_a) then
+            tut_spr:moveTo(0, tut_animator:currentValue())
+            if(tut_animator:ended()) then
+                if(tut_ending_b) then
+                    tut_spr:setVisible(false)
+                    in_tut = false
+                else
+                    slide_2:play()
+                    tut_animator = gfx.animator.new(400, -40, 240, playdate.easingFunctions.inOutQuad)
+                    tut_ending_b = true
+                end
+            end
+        elseif(playdate.buttonIsPressed(playdate.kButtonRight)) then
+            button_spr:setVisible(false)
+            tut_animator = gfx.animator.new(200, 0, -40, playdate.easingFunctions.inOutQuad)
+            slide_1:play()
+            tut_ending_a = true
         end
     end
-    update_body(crank_change)
-    update_jim()
 
     gfx.clear(gfx.kColorWhite)
+    update_body(scaled_crank_change)
+    update_jim()
+
     draw_all()
 end
