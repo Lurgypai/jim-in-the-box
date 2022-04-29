@@ -116,6 +116,7 @@ function startup()
 
     -- box in the middle
     box_spr:setZIndex(0)
+    jim_spr:setZIndex(-5)
 
     -- body in the back
     char_spr:setZIndex(-10)
@@ -368,20 +369,20 @@ local song = {
     "", "", "", "",
     "C5", "", "", "",
 }
-local s = snd.synth.new(snd.kWaveSine)
-local p = snd.synth.new(snd.kWaveNoise)
-s:setADSR(0.0, 0.1, 0.2, 0.2)
-p:setADSR(0.0, 0.0, 0.3, 0.0001)
-local ins = snd.instrument.new(s)
-local pins = snd.instrument.new(p)
-local s2 = snd.synth.new(snd.kWaveSine)
-s2:setADSR(0.0, 0.1, 0.2, 0.2)
-local ins2 = snd.instrument.new(s2)
-local s3 = snd.synth.new(snd.kWaveSine)
-s3:setADSR(0.0, 0.1, 0.2, 0.2)
-local ins3 = snd.instrument.new(s3)
-local step_delay = 0
-local step = 1
+
+local notes = {
+    G4 = snd.sampleplayer.new("sounds/g4"),
+    C5 = snd.sampleplayer.new("sounds/c5"),
+    D5 = snd.sampleplayer.new("sounds/d5"),
+    E5 = snd.sampleplayer.new("sounds/e5"),
+    F5 = snd.sampleplayer.new("sounds/f5"),
+    G5 = snd.sampleplayer.new("sounds/g5"),
+    A5 = snd.sampleplayer.new("sounds/a5"),
+}
+
+local sting_snd = snd.sampleplayer.new("sounds/sting")
+step = 1
+step_delay = 0
 
 local tut_animator
 local tut_ending_a = false
@@ -421,8 +422,7 @@ function playdate.update()
             if(step_delay >= 90) then
                 step_delay -= 90
                 if song[step] ~= "" then
-                    ins:playNote(song[step], 1.0, 0.1)
-                    pins:playNote(song[step], 0.1, 0.001)
+                    notes[song[step]]:play()
                 end
                 if (step == #song) then
                     step = 0
@@ -436,9 +436,7 @@ function playdate.update()
             if(not jim_spawned) then
                 jim_spawned = true
 
-                ins:playNote("C4", 0.3, 0.3)
-                ins2:playNote("B3", 0.3, 0.3)
-                ins3:playNote("A3", 0.3, 0.3)
+                sting_snd:play()
 
                 step = 1
 

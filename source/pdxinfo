@@ -1,0 +1,8 @@
+pdxversion=11000
+buildtime=703791343
+name=JimInTheBox
+author=Lurgypai
+description=A game to show your friends how much fun the Playdate is!
+bundleID=com.lurgypai.jiminthebox
+version=1.0
+imagePath=images/assets
